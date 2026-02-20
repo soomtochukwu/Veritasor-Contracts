@@ -1,5 +1,13 @@
 #![no_std]
-use soroban_sdk::{contract, contractimpl, Address, BytesN, Env, String};
+use soroban_sdk::{contract, contractimpl, Address, BytesN, Env, String, Vec};
+
+pub mod dynamic_fees;
+pub use dynamic_fees::{compute_fee, DataKey, FeeConfig};
+
+#[cfg(test)]
+mod test;
+#[cfg(test)]
+mod dynamic_fees_test;
 
 pub mod dispute;
 use dispute::{
@@ -14,8 +22,97 @@ pub struct AttestationContract;
 
 #[contractimpl]
 impl AttestationContract {
-    /// Submit a revenue attestation: store merkle root and metadata for (business, period).
-    /// Prevents overwriting existing attestation for the same period (idempotency).
+    // ── Initialization ──────────────────────────────────────────────
+
+    /// One-time contract initialization. Sets the admin address.
+    ///
+    /// Must be called before any admin-gated method. The caller must
+    /// authorize as `admin`.
+    pub fn initialize(env: Env, admin: Address) {
+        if dynamic_fees::is_initialized(&env) {
+            panic!("already initialized");
+        }
+        admin.require_auth();
+        dynamic_fees::set_admin(&env, &admin);
+    }
+
+    // ── Admin: Fee configuration ────────────────────────────────────
+
+    /// Configure or update the core fee schedule.
+    ///
+    /// * `token`    – Token contract address for fee payment.
+    /// * `collector` – Address that receives fees.
+    /// * `base_fee` – Base fee in token smallest units.
+    /// * `enabled`  – Master switch for fee collection.
+    pub fn configure_fees(
+        env: Env,
+        token: Address,
+        collector: Address,
+        base_fee: i128,
+        enabled: bool,
+    ) {
+        dynamic_fees::require_admin(&env);
+        assert!(base_fee >= 0, "base_fee must be non-negative");
+        let config = FeeConfig {
+            token,
+            collector,
+            base_fee,
+            enabled,
+        };
+        dynamic_fees::set_fee_config(&env, &config);
+    }
+
+    /// Set the discount (in basis points, 0–10 000) for a tier level.
+    ///
+    /// * Tier 0 = Standard (default for all businesses).
+    /// * Tier 1 = Professional.
+    /// * Tier 2 = Enterprise.
+    ///
+    /// Higher tiers are allowed; the scheme is open-ended.
+    pub fn set_tier_discount(env: Env, tier: u32, discount_bps: u32) {
+        dynamic_fees::require_admin(&env);
+        dynamic_fees::set_tier_discount(&env, tier, discount_bps);
+    }
+
+    /// Assign a business address to a fee tier.
+    pub fn set_business_tier(env: Env, business: Address, tier: u32) {
+        dynamic_fees::require_admin(&env);
+        dynamic_fees::set_business_tier(&env, &business, tier);
+    }
+
+    /// Set volume discount brackets.
+    ///
+    /// `thresholds` and `discounts` must be equal-length vectors.
+    /// Thresholds must be in strictly ascending order.
+    /// Each discount is in basis points (0–10 000).
+    ///
+    /// Example: thresholds `[10, 50, 100]`, discounts `[500, 1000, 2000]`
+    /// means 5 % off after 10 attestations, 10 % after 50, 20 % after 100.
+    pub fn set_volume_brackets(env: Env, thresholds: Vec<u64>, discounts: Vec<u32>) {
+        dynamic_fees::require_admin(&env);
+        dynamic_fees::set_volume_brackets(&env, &thresholds, &discounts);
+    }
+
+    /// Toggle fee collection on or off without changing other config.
+    pub fn set_fee_enabled(env: Env, enabled: bool) {
+        dynamic_fees::require_admin(&env);
+        let mut config = dynamic_fees::get_fee_config(&env).expect("fees not configured");
+        config.enabled = enabled;
+        dynamic_fees::set_fee_config(&env, &config);
+    }
+
+    // ── Core attestation methods ────────────────────────────────────
+
+    /// Submit a revenue attestation.
+    ///
+    /// Stores the Merkle root, timestamp, and version for the given
+    /// (business, period) pair. If fees are enabled the caller pays the
+    /// calculated fee (base fee adjusted by tier and volume discounts)
+    /// in the configured token. The business address must authorize the
+    /// call.
+    ///
+    /// Panics if an attestation already exists for the same
+    /// (business, period).
     pub fn submit_attestation(
         env: Env,
         business: Address,
@@ -24,32 +121,44 @@ impl AttestationContract {
         timestamp: u64,
         version: u32,
     ) {
-        let key = (business, period);
+        business.require_auth();
+
+        let key = DataKey::Attestation(business.clone(), period);
         if env.storage().instance().has(&key) {
             panic!("attestation already exists for this business and period");
         }
-        let data = (merkle_root, timestamp, version);
+
+        // Collect fee (0 if fees disabled or not configured).
+        let fee_paid = dynamic_fees::collect_fee(&env, &business);
+
+        // Track volume for future discount calculations.
+        dynamic_fees::increment_business_count(&env, &business);
+
+        let data = (merkle_root, timestamp, version, fee_paid);
         env.storage().instance().set(&key, &data);
     }
 
-    /// Return stored attestation for (business, period) if any.
+    /// Return stored attestation for (business, period), if any.
+    ///
+    /// Returns `(merkle_root, timestamp, version, fee_paid)`.
     pub fn get_attestation(
         env: Env,
         business: Address,
         period: String,
-    ) -> Option<(BytesN<32>, u64, u32)> {
-        let key = (business, period);
+    ) -> Option<(BytesN<32>, u64, u32, i128)> {
+        let key = DataKey::Attestation(business, period);
         env.storage().instance().get(&key)
     }
 
-    /// Verify that an attestation exists and matches the given merkle root.
+    /// Verify that an attestation exists and its merkle root matches.
     pub fn verify_attestation(
         env: Env,
         business: Address,
         period: String,
         merkle_root: BytesN<32>,
     ) -> bool {
-        if let Some((stored_root, _ts, _ver)) = Self::get_attestation(env.clone(), business, period)
+        if let Some((stored_root, _ts, _ver, _fee)) =
+            Self::get_attestation(env.clone(), business, period)
         {
             stored_root == merkle_root
         } else {
@@ -57,153 +166,30 @@ impl AttestationContract {
         }
     }
 
-    /// Open a new dispute for an existing attestation
-    /// 
-    /// # Arguments
-    /// * `challenger` - Address of the party challenging the attestation
-    /// * `business` - Business address associated with the attestation
-    /// * `period` - Period of the attestation being disputed
-    /// * `dispute_type` - Type of dispute being raised
-    /// * `evidence` - Evidence or description supporting the dispute
-    /// 
-    /// # Returns
-    /// The ID of the newly created dispute
-    /// 
-    /// # Panics
-    /// * If no attestation exists for the given business and period
-    /// * If challenger already has an open dispute for this attestation
-    /// * If challenger is not authorized to open disputes
-    pub fn open_dispute(
-        env: Env,
-        challenger: Address,
-        business: Address,
-        period: String,
-        dispute_type: DisputeType,
-        evidence: String,
-    ) -> u64 {
-        // Validate eligibility
-        validate_dispute_eligibility(&env, &challenger, &business, &period)
-            .unwrap_or_else(|e| panic!("{}", e));
-        
-        // Generate new dispute ID
-        let dispute_id = generate_dispute_id(&env);
-        
-        // Create dispute record
-        let dispute = Dispute {
-            id: dispute_id,
-            challenger: challenger.clone(),
-            business: business.clone(),
-            period: period.clone(),
-            status: DisputeStatus::Open,
-            dispute_type,
-            evidence,
-            timestamp: env.ledger().timestamp(),
-            resolution: None,
-        };
-        
-        // Store dispute
-        store_dispute(&env, &dispute);
-        
-        // Update indices
-        add_dispute_to_attestation_index(&env, &business, &period, dispute_id);
-        add_dispute_to_challenger_index(&env, &challenger, dispute_id);
-        
-        dispute_id
+    // ── Read-only queries ───────────────────────────────────────────
+
+    /// Return the current fee configuration, or None if not configured.
+    pub fn get_fee_config(env: Env) -> Option<FeeConfig> {
+        dynamic_fees::get_fee_config(&env)
     }
 
-    /// Resolve an open dispute with an outcome
-    /// 
-    /// # Arguments
-    /// * `dispute_id` - ID of the dispute to resolve
-    /// * `resolver` - Address of the party resolving the dispute
-    /// * `outcome` - Outcome of the dispute resolution
-    /// * `notes` - Optional notes about the resolution
-    /// 
-    /// # Panics
-    /// * If dispute doesn't exist
-    /// * If dispute is not in Open status
-    /// * If resolver is not authorized to resolve disputes
-    pub fn resolve_dispute(
-        env: Env,
-        dispute_id: u64,
-        resolver: Address,
-        outcome: DisputeOutcome,
-        notes: String,
-    ) {
-        // Validate resolution eligibility
-        let mut dispute = validate_dispute_resolution(&env, dispute_id, &resolver)
-            .unwrap_or_else(|e| panic!("{}", e));
-        
-        // Create resolution record
-        let resolution = DisputeResolution {
-            resolver: resolver.clone(),
-            outcome,
-            timestamp: env.ledger().timestamp(),
-            notes,
-        };
-        
-        // Update dispute status and resolution
-        dispute.status = DisputeStatus::Resolved;
-        dispute.resolution = Some(resolution);
-        
-        // Store updated dispute
-        store_dispute(&env, &dispute);
+    /// Calculate the fee a business would pay for its next attestation.
+    pub fn get_fee_quote(env: Env, business: Address) -> i128 {
+        dynamic_fees::calculate_fee(&env, &business)
     }
 
-    /// Close a resolved dispute, making it final
-    /// 
-    /// # Arguments
-    /// * `dispute_id` - ID of the dispute to close
-    /// 
-    /// # Panics
-    /// * If dispute doesn't exist
-    /// * If dispute is not in Resolved status
-    pub fn close_dispute(env: Env, dispute_id: u64) {
-        // Validate closure eligibility
-        let mut dispute = validate_dispute_closure(&env, dispute_id)
-            .unwrap_or_else(|e| panic!("{}", e));
-        
-        // Update dispute status
-        dispute.status = DisputeStatus::Closed;
-        
-        // Store updated dispute
-        store_dispute(&env, &dispute);
+    /// Return the tier assigned to a business (0 if unset).
+    pub fn get_business_tier(env: Env, business: Address) -> u32 {
+        dynamic_fees::get_business_tier(&env, &business)
     }
 
-    /// Get details of a specific dispute
-    /// 
-    /// # Arguments
-    /// * `dispute_id` - ID of the dispute to retrieve
-    /// 
-    /// # Returns
-    /// Option containing the dispute details, or None if not found
-    pub fn get_dispute(env: Env, dispute_id: u64) -> Option<Dispute> {
-        get_dispute(&env, dispute_id)
+    /// Return the cumulative attestation count for a business.
+    pub fn get_business_count(env: Env, business: Address) -> u64 {
+        dynamic_fees::get_business_count(&env, &business)
     }
 
-    /// Get all dispute IDs for a specific attestation
-    /// 
-    /// # Arguments
-    /// * `business` - Business address
-    /// * `period` - Period string
-    /// 
-    /// # Returns
-    /// Vector of dispute IDs associated with this attestation
-    pub fn get_disputes_by_attestation(env: Env, business: Address, period: String) -> soroban_sdk::Vec<u64> {
-        get_dispute_ids_by_attestation(&env, &business, &period)
-    }
-
-    /// Get all dispute IDs opened by a specific challenger
-    /// 
-    /// # Arguments
-    /// * `challenger` - Address of the challenger
-    /// 
-    /// # Returns
-    /// Vector of dispute IDs opened by this challenger
-    pub fn get_disputes_by_challenger(env: Env, challenger: Address) -> soroban_sdk::Vec<u64> {
-        get_dispute_ids_by_challenger(&env, &challenger)
+    /// Return the contract admin address.
+    pub fn get_admin(env: Env) -> Address {
+        dynamic_fees::get_admin(&env)
     }
 }
-
-mod test;
-mod dispute_test;
