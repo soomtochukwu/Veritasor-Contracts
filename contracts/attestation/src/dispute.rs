@@ -52,6 +52,14 @@ pub struct DisputeResolution {
     pub notes: String,
 }
 
+/// Optional resolution for contracttype compatibility
+#[derive(Clone, Debug, PartialEq)]
+#[contracttype]
+pub enum OptionalResolution {
+    None,
+    Some(DisputeResolution),
+}
+
 /// Dispute record for a challenged attestation
 #[contracttype]
 #[derive(Clone, Debug, PartialEq)]
@@ -72,8 +80,8 @@ pub struct Dispute {
     pub evidence: String,
     /// Timestamp when dispute was opened
     pub timestamp: u64,
-    /// Resolution details (empty if not yet resolved, single element when resolved)
-    pub resolution: Vec<DisputeResolution>,
+    /// Resolution details (None if not yet resolved)
+    pub resolution: OptionalResolution,
 }
 
 /// Storage keys for dispute management

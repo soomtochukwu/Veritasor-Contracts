@@ -1,5 +1,4 @@
-#![cfg(test)]
-use super::dispute::{DisputeOutcome, DisputeStatus, DisputeType};
+use super::dispute::{DisputeOutcome, DisputeStatus, DisputeType, OptionalResolution};
 use super::*;
 use soroban_sdk::testutils::Address as _;
 use soroban_sdk::{Address, BytesN, Env, String};
@@ -37,7 +36,7 @@ fn test_open_dispute_success() {
     assert_eq!(dispute.status, DisputeStatus::Open);
     assert_eq!(dispute.dispute_type, dispute_type);
     assert_eq!(dispute.evidence, evidence);
-    assert!(dispute.resolution.is_empty());
+    assert_eq!(dispute.resolution, OptionalResolution::None);
 }
 
 #[test]
@@ -104,12 +103,13 @@ fn test_dispute_resolution() {
 
     let dispute = client.get_dispute(&dispute_id).unwrap();
     assert_eq!(dispute.status, DisputeStatus::Resolved);
-    assert_eq!(dispute.resolution.len(), 1);
-
-    let resolution = dispute.resolution.get(0).unwrap();
-    assert_eq!(resolution.resolver, resolver);
-    assert_eq!(resolution.outcome, outcome);
-    assert_eq!(resolution.notes, notes);
+    if let OptionalResolution::Some(resolution) = dispute.resolution {
+        assert_eq!(resolution.resolver, resolver);
+        assert_eq!(resolution.outcome, outcome);
+        assert_eq!(resolution.notes, notes);
+    } else {
+        panic!("expected resolution to be Some");
+    }
 }
 
 #[test]
@@ -331,11 +331,12 @@ fn test_business_vs_lender_dispute_scenario() {
     // Verify resolution
     let dispute = client.get_dispute(&dispute_id).unwrap();
     assert_eq!(dispute.status, DisputeStatus::Resolved);
-    assert_eq!(
-        dispute.resolution.get(0).unwrap().outcome,
-        DisputeOutcome::Rejected
-    );
-    assert_eq!(dispute.resolution.get(0).unwrap().resolver, business);
+    if let OptionalResolution::Some(ref resolution) = dispute.resolution {
+        assert_eq!(resolution.outcome, DisputeOutcome::Rejected);
+        assert_eq!(resolution.resolver, business);
+    } else {
+        panic!("expected resolution to be Some");
+    }
 
     // Close dispute
     client.close_dispute(&dispute_id);
@@ -373,11 +374,12 @@ fn test_dispute_lifecycle_complete_flow() {
 
     let dispute = client.get_dispute(&dispute_id).unwrap();
     assert_eq!(dispute.status, DisputeStatus::Resolved);
-    assert_eq!(
-        dispute.resolution.get(0).unwrap().outcome,
-        DisputeOutcome::Upheld
-    );
-    assert_eq!(dispute.resolution.get(0).unwrap().resolver, resolver);
+    if let OptionalResolution::Some(ref resolution) = dispute.resolution {
+        assert_eq!(resolution.outcome, DisputeOutcome::Upheld);
+        assert_eq!(resolution.resolver, resolver);
+    } else {
+        panic!("expected resolution to be Some");
+    }
 
     // Phase 4: Close dispute
     client.close_dispute(&dispute_id);

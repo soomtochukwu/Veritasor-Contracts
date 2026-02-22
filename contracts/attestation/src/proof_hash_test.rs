@@ -1,5 +1,3 @@
-#![cfg(test)]
-
 //! Off-chain proof hash correlation tests — verifies storage, retrieval,
 //! backward compatibility, and migration preservation of the optional
 //! SHA-256 proof hash field on attestations.
