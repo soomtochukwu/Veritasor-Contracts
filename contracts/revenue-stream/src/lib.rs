@@ -46,6 +46,20 @@ impl<'a> AttestationContractClient<'a> {
             args,
         )
     }
+use soroban_sdk::{contract, contractimpl, contracttype, token, Address, Env, String};
+
+/// Attestation client: WASM import for wasm32 (avoids duplicate symbols), crate for tests.
+#[cfg(target_arch = "wasm32")]
+mod attestation_import {
+    // Path from crate dir (contracts/revenue-stream): ../../ = workspace root.
+    soroban_sdk::contractimport!(
+        file = "../../target/wasm32-unknown-unknown/release/veritasor_attestation.wasm"
+    );
+    pub use Client as AttestationContractClient;
+}
+#[cfg(not(target_arch = "wasm32"))]
+mod attestation_import {
+    pub use veritasor_attestation::AttestationContractClient;
 }
 
 #[cfg(test)]
@@ -145,7 +159,8 @@ impl RevenueStreamContract {
             .get(&DataKey::Stream(stream_id))
             .expect("stream not found");
         assert!(!stream.released, "stream already released");
-        let client = AttestationContractClient::new(&env, &stream.attestation_contract);
+        let client =
+            attestation_import::AttestationContractClient::new(&env, &stream.attestation_contract);
         let exists = client
             .get_attestation(&stream.business, &stream.period)
             .is_some();

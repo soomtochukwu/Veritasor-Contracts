@@ -37,6 +37,11 @@ jobs:
       - name: Check formatting
         run: cargo fmt --all -- --check
       
+      - name: Build attestation WASM (required for snapshot/revenue-stream contractimport)
+        run: cargo build --release -p veritasor-attestation --target wasm32-unknown-unknown
+      - name: Build snapshot WASM (required for aggregated-attestations contractimport)
+        run: cargo build --release -p veritasor-attestation-snapshot --target wasm32-unknown-unknown
+      
       - name: Run clippy
         run: cargo clippy --all-targets --all-features -- -D warnings
       
@@ -65,6 +70,11 @@ jobs:
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
             ${{ runner.os }}-cargo-
+      
+      - name: Build attestation WASM
+        run: cargo build --release -p veritasor-attestation --target wasm32-unknown-unknown
+      - name: Build snapshot WASM
+        run: cargo build --release -p veritasor-attestation-snapshot --target wasm32-unknown-unknown
       
       - name: Run tests
         run: cargo test --all --verbose
@@ -95,7 +105,9 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-cargo-
       
+      - name: Build attestation WASM
+        run: cargo build --release -p veritasor-attestation --target wasm32-unknown-unknown
+      - name: Build snapshot WASM
+        run: cargo build --release -p veritasor-attestation-snapshot --target wasm32-unknown-unknown
       - name: Build contracts (release)
-        run: |
-          cargo build -p veritasor-attestation -p veritasor-audit-log -p veritasor-integration-registry --release --target wasm32-unknown-unknown
-          cargo build -p veritasor-revenue-stream --release
+        run: cargo build --release --target wasm32-unknown-unknown
