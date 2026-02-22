@@ -281,44 +281,6 @@ impl AttestationContract {
     /// Panics if:
     /// - The contract is paused
     /// - An attestation already exists for the same (business, period)
-
-    // pub fn submit_attestation(
-    //     env: Env,
-    //     business: Address,
-    //     period: String,
-    //     merkle_root: BytesN<32>,
-    //     timestamp: u64,
-    //     version: u32,
-    // ) {
-    //     access_control::require_not_paused(&env);
-    //     business.require_auth();
-
-    //     let key = DataKey::Attestation(business.clone(), period.clone());
-    //     if env.storage().instance().has(&key) {
-    //         panic!("attestation already exists for this business and period");
-    //     }
-
-    //     // Collect fee (0 if fees disabled or not configured).
-    //     let fee_paid = dynamic_fees::collect_fee(&env, &business);
-
-    //     // Track volume for future discount calculations.
-    //     dynamic_fees::increment_business_count(&env, &business);
-
-    //     let data = (merkle_root.clone(), timestamp, version, fee_paid);
-    //     env.storage().instance().set(&key, &data);
-
-    //     // Emit event
-    //     events::emit_attestation_submitted(
-    //         &env,
-    //         &business,
-    //         &period,
-    //         &merkle_root,
-    //         timestamp,
-    //         version,
-    //         fee_paid,
-    //     );
-    // }
-
     pub fn submit_attestation(
         env: Env,
         business: Address,
