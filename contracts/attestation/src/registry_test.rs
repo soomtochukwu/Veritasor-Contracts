@@ -1,5 +1,3 @@
-#![cfg(test)]
-
 // ======================= Business Registry - Test Suite ================================
 //
 // All tests go through `AttestationContractClient` — the generated client
