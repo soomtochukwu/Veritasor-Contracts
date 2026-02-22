@@ -1,4 +1,3 @@
-#![cfg(test)]
 //! Tests for aggregated attestations: empty portfolios, overlapping businesses,
 //! and lender portfolio view scenarios.
 

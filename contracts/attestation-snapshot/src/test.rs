@@ -1,4 +1,3 @@
-#![cfg(test)]
 //! Tests for the attestation snapshot contract: recording, querying, attestation
 //! validation, edge cases (missing attestations, repeated snapshots, evolving metrics),
 //! and scenario tests where lenders query snapshots for underwriting.
@@ -44,7 +43,7 @@ fn setup_with_attestation() -> (
 
 #[test]
 fn test_initialize() {
-    let (env, client, admin) = setup_snapshot_only();
+    let (_env, client, admin) = setup_snapshot_only();
     assert_eq!(client.get_admin(), admin);
     assert!(client.get_attestation_contract().is_none());
 }
