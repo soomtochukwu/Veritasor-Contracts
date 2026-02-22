@@ -25,9 +25,10 @@ mod test;
 pub mod dispute;
 use dispute::{
     add_dispute_to_attestation_index, add_dispute_to_challenger_index, generate_dispute_id,
-    get_dispute, get_dispute_ids_by_attestation, get_dispute_ids_by_challenger, store_dispute,
-    validate_dispute_closure, validate_dispute_eligibility, validate_dispute_resolution, Dispute,
-    DisputeOutcome, DisputeResolution, DisputeStatus, DisputeType,
+    get_dispute, get_dispute_ids_by_attestation, get_dispute_ids_by_challenger,
+    get_dispute_resolution, store_dispute, store_dispute_resolution, validate_dispute_closure,
+    validate_dispute_eligibility, validate_dispute_resolution, Dispute, DisputeOutcome,
+    DisputeResolution, DisputeStatus, DisputeType,
 };
 
 #[contract]
