@@ -1,11 +1,13 @@
-#![cfg(test)]
 use crate::{AttestationContract, AttestationContractClient};
-use soroban_sdk::{testutils::{Address as _, Ledger}, Address, BytesN, Env, String};
+use soroban_sdk::{
+    testutils::{Address as _, Ledger},
+    Address, BytesN, Env, String,
+};
 
 fn setup() -> (Env, AttestationContractClient<'static>, Address) {
     let env = Env::default();
     env.mock_all_auths();
-    let contract_id = env.register_contract(None, AttestationContract);
+    let contract_id = env.register(AttestationContract, ());
     let client = AttestationContractClient::new(&env, &contract_id);
     let admin = Address::generate(&env);
     client.initialize(&admin);
@@ -38,7 +40,14 @@ fn test_submit_attestation_with_expiry() {
     let merkle_root = BytesN::from_array(&env, &[1u8; 32]);
     let expiry_ts = 2000u64;
 
-    client.submit_attestation(&business, &period, &merkle_root, &1000, &1, &Some(expiry_ts));
+    client.submit_attestation(
+        &business,
+        &period,
+        &merkle_root,
+        &1000,
+        &1,
+        &Some(expiry_ts),
+    );
 
     let result = client.get_attestation(&business, &period);
     assert!(result.is_some());
@@ -64,11 +73,18 @@ fn test_is_expired_returns_false_when_not_expired() {
     let business = Address::generate(&env);
     let period = String::from_str(&env, "2026-Q1");
     let merkle_root = BytesN::from_array(&env, &[1u8; 32]);
-    
+
     env.ledger().set_timestamp(1000);
     let expiry_ts = 2000u64;
 
-    client.submit_attestation(&business, &period, &merkle_root, &1000, &1, &Some(expiry_ts));
+    client.submit_attestation(
+        &business,
+        &period,
+        &merkle_root,
+        &1000,
+        &1,
+        &Some(expiry_ts),
+    );
 
     assert!(!client.is_expired(&business, &period));
 }
@@ -79,11 +95,18 @@ fn test_is_expired_returns_true_when_expired() {
     let business = Address::generate(&env);
     let period = String::from_str(&env, "2026-Q1");
     let merkle_root = BytesN::from_array(&env, &[1u8; 32]);
-    
+
     env.ledger().set_timestamp(1000);
     let expiry_ts = 1500u64;
 
-    client.submit_attestation(&business, &period, &merkle_root, &1000, &1, &Some(expiry_ts));
+    client.submit_attestation(
+        &business,
+        &period,
+        &merkle_root,
+        &1000,
+        &1,
+        &Some(expiry_ts),
+    );
 
     // Advance time past expiry
     env.ledger().set_timestamp(1600);
@@ -97,11 +120,18 @@ fn test_is_expired_at_exact_expiry_time() {
     let business = Address::generate(&env);
     let period = String::from_str(&env, "2026-Q1");
     let merkle_root = BytesN::from_array(&env, &[1u8; 32]);
-    
+
     env.ledger().set_timestamp(1000);
     let expiry_ts = 1500u64;
 
-    client.submit_attestation(&business, &period, &merkle_root, &1000, &1, &Some(expiry_ts));
+    client.submit_attestation(
+        &business,
+        &period,
+        &merkle_root,
+        &1000,
+        &1,
+        &Some(expiry_ts),
+    );
 
     // Set time to exact expiry
     env.ledger().set_timestamp(1500);
@@ -124,11 +154,18 @@ fn test_expired_attestation_still_queryable() {
     let business = Address::generate(&env);
     let period = String::from_str(&env, "2026-Q1");
     let merkle_root = BytesN::from_array(&env, &[1u8; 32]);
-    
+
     env.ledger().set_timestamp(1000);
     let expiry_ts = 1500u64;
 
-    client.submit_attestation(&business, &period, &merkle_root, &1000, &1, &Some(expiry_ts));
+    client.submit_attestation(
+        &business,
+        &period,
+        &merkle_root,
+        &1000,
+        &1,
+        &Some(expiry_ts),
+    );
 
     // Advance time past expiry
     env.ledger().set_timestamp(2000);
@@ -136,7 +173,7 @@ fn test_expired_attestation_still_queryable() {
     // Attestation should still be queryable
     let result = client.get_attestation(&business, &period);
     assert!(result.is_some());
-    
+
     // But marked as expired
     assert!(client.is_expired(&business, &period));
 }
@@ -147,18 +184,25 @@ fn test_verify_attestation_ignores_expiry() {
     let business = Address::generate(&env);
     let period = String::from_str(&env, "2026-Q1");
     let merkle_root = BytesN::from_array(&env, &[1u8; 32]);
-    
+
     env.ledger().set_timestamp(1000);
     let expiry_ts = 1500u64;
 
-    client.submit_attestation(&business, &period, &merkle_root, &1000, &1, &Some(expiry_ts));
+    client.submit_attestation(
+        &business,
+        &period,
+        &merkle_root,
+        &1000,
+        &1,
+        &Some(expiry_ts),
+    );
 
     // Advance time past expiry
     env.ledger().set_timestamp(2000);
 
     // verify_attestation should still return true (doesn't check expiry)
     assert!(client.verify_attestation(&business, &period, &merkle_root));
-    
+
     // But is_expired should return true
     assert!(client.is_expired(&business, &period));
 }

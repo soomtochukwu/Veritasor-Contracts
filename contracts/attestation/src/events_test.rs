@@ -133,7 +133,14 @@ fn test_migrate_attestation_emits_event() {
     let old_root = BytesN::from_array(&env, &[1u8; 32]);
     let new_root = BytesN::from_array(&env, &[2u8; 32]);
 
-    client.submit_attestation(&business, &period, &old_root, &1_700_000_000u64, &1u32, &None);
+    client.submit_attestation(
+        &business,
+        &period,
+        &old_root,
+        &1_700_000_000u64,
+        &1u32,
+        &None,
+    );
 
     client.migrate_attestation(&admin, &business, &period, &new_root, &2u32);
 
@@ -151,7 +158,14 @@ fn test_migrate_attestation_updates_data() {
     let old_root = BytesN::from_array(&env, &[1u8; 32]);
     let new_root = BytesN::from_array(&env, &[2u8; 32]);
 
-    client.submit_attestation(&business, &period, &old_root, &1_700_000_000u64, &1u32, &None);
+    client.submit_attestation(
+        &business,
+        &period,
+        &old_root,
+        &1_700_000_000u64,
+        &1u32,
+        &None,
+    );
 
     // Old root verifies
     assert!(client.verify_attestation(&business, &period, &old_root));
@@ -179,7 +193,14 @@ fn test_migrate_with_same_version_panics() {
     let old_root = BytesN::from_array(&env, &[1u8; 32]);
     let new_root = BytesN::from_array(&env, &[2u8; 32]);
 
-    client.submit_attestation(&business, &period, &old_root, &1_700_000_000u64, &1u32, &None);
+    client.submit_attestation(
+        &business,
+        &period,
+        &old_root,
+        &1_700_000_000u64,
+        &1u32,
+        &None,
+    );
 
     // Same version should panic
     client.migrate_attestation(&admin, &business, &period, &new_root, &1u32);
@@ -195,7 +216,14 @@ fn test_migrate_with_lower_version_panics() {
     let old_root = BytesN::from_array(&env, &[1u8; 32]);
     let new_root = BytesN::from_array(&env, &[2u8; 32]);
 
-    client.submit_attestation(&business, &period, &old_root, &1_700_000_000u64, &5u32, &None);
+    client.submit_attestation(
+        &business,
+        &period,
+        &old_root,
+        &1_700_000_000u64,
+        &5u32,
+        &None,
+    );
 
     // Lower version should panic
     client.migrate_attestation(&admin, &business, &period, &new_root, &3u32);
@@ -316,7 +344,14 @@ fn test_multiple_migrations() {
     let root_v2 = BytesN::from_array(&env, &[2u8; 32]);
     let root_v3 = BytesN::from_array(&env, &[3u8; 32]);
 
-    client.submit_attestation(&business, &period, &root_v1, &1_700_000_000u64, &1u32, &None);
+    client.submit_attestation(
+        &business,
+        &period,
+        &root_v1,
+        &1_700_000_000u64,
+        &1u32,
+        &None,
+    );
     client.migrate_attestation(&admin, &business, &period, &root_v2, &2u32);
     client.migrate_attestation(&admin, &business, &period, &root_v3, &3u32);
 
