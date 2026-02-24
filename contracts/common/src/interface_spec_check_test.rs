@@ -85,7 +85,7 @@ fn test_get_expected_methods_non_empty() {
     let env = Env::default();
     let methods = get_expected_methods(&env);
 
-    assert!(methods.len() > 0, "Expected methods should not be empty");
+    assert!(!methods.is_empty(), "Expected methods should not be empty");
 }
 
 #[test]
@@ -93,7 +93,7 @@ fn test_get_expected_events_non_empty() {
     let env = Env::default();
     let events = get_expected_events(&env);
 
-    assert!(events.len() > 0, "Expected events should not be empty");
+    assert!(!events.is_empty(), "Expected events should not be empty");
 }
 
 #[test]
@@ -101,7 +101,7 @@ fn test_get_expected_structs_non_empty() {
     let env = Env::default();
     let structs = get_expected_structs(&env);
 
-    assert!(structs.len() > 0, "Expected structs should not be empty");
+    assert!(!structs.is_empty(), "Expected structs should not be empty");
 }
 
 #[test]

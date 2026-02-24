@@ -655,15 +655,15 @@ pub fn verify_interface_consistency(env: &Env) -> VerificationResult {
     // 3. Report any discrepancies
 
     // For now, we verify that our expected lists are non-empty
-    if expected_methods.len() == 0 {
+    if expected_methods.is_empty() {
         result.add_error(env, String::from_str(env, "No expected methods defined"));
     }
 
-    if expected_events.len() == 0 {
+    if expected_events.is_empty() {
         result.add_error(env, String::from_str(env, "No expected events defined"));
     }
 
-    if expected_structs.len() == 0 {
+    if expected_structs.is_empty() {
         result.add_error(env, String::from_str(env, "No expected structs defined"));
     }
 
