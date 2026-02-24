@@ -1,8 +1,7 @@
 [workspace]
-attestation_registry
-members = ["contracts/attestation", "contracts/attestation-registry"]
 members = [
     "contracts/attestation",
+    "contracts/attestation-registry",
     "contracts/integration-registry",
 ]
 resolver = "2"
