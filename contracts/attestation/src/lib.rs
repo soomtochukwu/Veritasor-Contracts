@@ -14,6 +14,7 @@ pub mod dynamic_fees;
 pub mod events;
 pub mod extended_metadata;
 pub mod multisig;
+pub mod rate_limit;
 // ─── End feature modules ───
 
 // ─── Re-exports: add new `pub use <module>::...` here if needed ───
@@ -22,6 +23,7 @@ pub use dynamic_fees::{compute_fee, DataKey, FeeConfig};
 pub use events::{AttestationMigratedEvent, AttestationRevokedEvent, AttestationSubmittedEvent};
 pub use extended_metadata::{AttestationMetadata, RevenueBasis};
 pub use multisig::{Proposal, ProposalAction, ProposalStatus};
+pub use rate_limit::RateLimitConfig;
 // ─── End re-exports ───
 
 // ─── Test modules: add new `mod <name>_test;` here ───
@@ -31,6 +33,8 @@ mod access_control_test;
 mod dynamic_fees_test;
 #[cfg(test)]
 mod events_test;
+#[cfg(test)]
+mod expiry_test;
 #[cfg(test)]
 mod extended_metadata_test;
 #[cfg(test)]
@@ -42,6 +46,11 @@ mod test;
 // ─── End test modules ───
 
 pub mod dispute;
+
+const ANOMALY_KEY_TAG: u32 = 1;
+const ADMIN_KEY_TAG: (u32,) = (2,);
+const AUTHORIZED_KEY_TAG: u32 = 3;
+const ANOMALY_SCORE_MAX: u32 = 100;
 
 #[contract]
 pub struct AttestationContract;
@@ -143,6 +152,40 @@ impl AttestationContract {
         dynamic_fees::set_fee_config(&env, &config);
     }
 
+    // ── Admin: Rate-limit configuration ─────────────────────────────
+
+    /// Configure or update the attestation rate limit.
+    ///
+    /// * `max_submissions` – Maximum submissions per business in one
+    ///   sliding window. Must be ≥ 1.
+    /// * `window_seconds`  – Window duration in seconds. Must be ≥ 1.
+    /// * `enabled`         – Master switch for rate limiting.
+    ///
+    /// Only the contract admin may call this method.
+    pub fn configure_rate_limit(
+        env: Env,
+        max_submissions: u32,
+        window_seconds: u64,
+        enabled: bool,
+    ) {
+        let admin = dynamic_fees::require_admin(&env);
+        let config = RateLimitConfig {
+            max_submissions,
+            window_seconds,
+            enabled,
+        };
+        rate_limit::set_rate_limit_config(&env, &config);
+
+        // Emit event
+        events::emit_rate_limit_config_changed(
+            &env,
+            max_submissions,
+            window_seconds,
+            enabled,
+            &admin,
+        );
+    }
+
     // ── Role-Based Access Control ───────────────────────────────────
 
     /// Grant a role to an address.
@@ -216,6 +259,12 @@ impl AttestationContract {
     /// The business address must authorize the call, or the caller must
     /// have ATTESTOR role.
     ///
+    /// # Expiry Semantics
+    /// * `expiry_timestamp` – Optional Unix timestamp (seconds) after which
+    ///   the attestation is considered stale. Pass `None` for no expiry.
+    /// * Expired attestations remain queryable but `is_expired()` returns true.
+    /// * Lenders and counterparties should check expiry before trusting data.
+    ///
     /// Panics if:
     /// - The contract is paused
     /// - An attestation already exists for the same (business, period)
@@ -226,9 +275,13 @@ impl AttestationContract {
         merkle_root: BytesN<32>,
         timestamp: u64,
         version: u32,
+        expiry_timestamp: Option<u64>,
     ) {
         access_control::require_not_paused(&env);
         business.require_auth();
+
+        // Enforce rate limit before any fee collection or state mutation.
+        rate_limit::check_rate_limit(&env, &business);
 
         let key = DataKey::Attestation(business.clone(), period.clone());
         if env.storage().instance().has(&key) {
@@ -241,8 +294,17 @@ impl AttestationContract {
         // Track volume for future discount calculations.
         dynamic_fees::increment_business_count(&env, &business);
 
-        let data = (merkle_root.clone(), timestamp, version, fee_paid);
+        let data = (
+            merkle_root.clone(),
+            timestamp,
+            version,
+            fee_paid,
+            expiry_timestamp,
+        );
         env.storage().instance().set(&key, &data);
+
+        // Record successful submission for rate-limit tracking.
+        rate_limit::record_submission(&env, &business);
 
         // Emit event
         events::emit_attestation_submitted(
@@ -283,7 +345,13 @@ impl AttestationContract {
         let fee_paid = dynamic_fees::collect_fee(&env, &business);
         dynamic_fees::increment_business_count(&env, &business);
 
-        let data = (merkle_root.clone(), timestamp, version, fee_paid);
+        let data = (
+            merkle_root.clone(),
+            timestamp,
+            version,
+            fee_paid,
+            None::<u64>,
+        );
         env.storage().instance().set(&key, &data);
 
         let metadata = extended_metadata::validate_metadata(&env, &currency_code, is_net);
@@ -367,7 +435,13 @@ impl AttestationContract {
         access_control::require_admin(&env, &caller);
 
         let key = DataKey::Attestation(business.clone(), period.clone());
-        let (old_merkle_root, timestamp, old_version, fee_paid): (BytesN<32>, u64, u32, i128) = env
+        let (old_merkle_root, timestamp, old_version, fee_paid, expiry_timestamp): (
+            BytesN<32>,
+            u64,
+            u32,
+            i128,
+            Option<u64>,
+        ) = env
             .storage()
             .instance()
             .get(&key)
@@ -378,7 +452,13 @@ impl AttestationContract {
             "new version must be greater than old version"
         );
 
-        let data = (new_merkle_root.clone(), timestamp, new_version, fee_paid);
+        let data = (
+            new_merkle_root.clone(),
+            timestamp,
+            new_version,
+            fee_paid,
+            expiry_timestamp,
+        );
         env.storage().instance().set(&key, &data);
 
         events::emit_attestation_migrated(
@@ -449,14 +529,33 @@ impl AttestationContract {
 
     /// Return stored attestation for (business, period), if any.
     ///
-    /// Returns `(merkle_root, timestamp, version, fee_paid)`.
+    /// Returns `(merkle_root, timestamp, version, fee_paid, expiry_timestamp)`.
+    /// The expiry_timestamp is `None` if no expiry was set.
     pub fn get_attestation(
         env: Env,
         business: Address,
         period: String,
-    ) -> Option<(BytesN<32>, u64, u32, i128)> {
+    ) -> Option<(BytesN<32>, u64, u32, i128, Option<u64>)> {
         let key = DataKey::Attestation(business, period);
         env.storage().instance().get(&key)
+    }
+
+    /// Check if an attestation has expired.
+    ///
+    /// Returns `true` if:
+    /// - The attestation exists
+    /// - It has an expiry timestamp set
+    /// - Current ledger time >= expiry timestamp
+    ///
+    /// Returns `false` if attestation doesn't exist or has no expiry.
+    pub fn is_expired(env: Env, business: Address, period: String) -> bool {
+        if let Some((_root, _ts, _ver, _fee, Some(expiry_ts))) =
+            Self::get_attestation(env.clone(), business, period)
+        {
+            env.ledger().timestamp() >= expiry_ts
+        } else {
+            false
+        }
     }
 
     /// Return extended metadata for (business, period), if any.
@@ -494,7 +593,7 @@ impl AttestationContract {
             return false;
         }
 
-        if let Some((stored_root, _ts, _ver, _fee)) =
+        if let Some((stored_root, _ts, _ver, _fee, _expiry)) =
             Self::get_attestation(env.clone(), business, period)
         {
             stored_root == merkle_root
@@ -674,6 +773,20 @@ impl AttestationContract {
     /// Return the contract admin address.
     pub fn get_admin(env: Env) -> Address {
         dynamic_fees::get_admin(&env)
+    }
+
+    // ── Rate-limit queries ──────────────────────────────────────────
+
+    /// Return the current rate limit configuration, or None if not set.
+    pub fn get_rate_limit_config(env: Env) -> Option<RateLimitConfig> {
+        rate_limit::get_rate_limit_config(&env)
+    }
+
+    /// Return how many submissions a business has in the current window.
+    ///
+    /// Returns 0 when rate limiting is not configured or disabled.
+    pub fn get_submission_window_count(env: Env, business: Address) -> u32 {
+        rate_limit::get_submission_count(&env, &business)
     }
 
     // ─── New feature methods: add new sections below (e.g. `// ── MyFeature ───` then methods). Do not edit sections above. ───
