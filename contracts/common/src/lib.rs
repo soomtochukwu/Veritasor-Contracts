@@ -1,4 +1,4 @@
-#![no_std]
+#![cfg_attr(not(test), no_std)]
 //! Shared utilities and security invariant tests for Veritasor contracts.
 
 pub mod merkle;
