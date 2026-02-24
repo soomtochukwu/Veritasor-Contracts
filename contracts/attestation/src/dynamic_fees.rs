@@ -37,12 +37,17 @@ use soroban_sdk::{contracttype, token, Address, Env, Vec};
 // ════════════════════════════════════════════════════════════════════
 
 /// Unified storage key enum for the entire contract.
+/// Add new variants only at the end of the appropriate section (or add a new section) to reduce merge conflicts.
 #[contracttype]
 #[derive(Clone)]
 pub enum DataKey {
     // ── Attestation data ────────────────────────────────────────
     /// Attestation record keyed by (business, period).
     Attestation(Address, soroban_sdk::String),
+    /// Revocation status keyed by (business, period).
+    Revoked(Address, soroban_sdk::String),
+    /// Extended metadata (currency, net/gross) keyed by (business, period).
+    AttestationMetadata(Address, soroban_sdk::String),
 
     // ── Fee system ──────────────────────────────────────────────
     /// Contract administrator address.
@@ -59,6 +64,13 @@ pub enum DataKey {
     VolumeThresholds,
     /// Ordered `Vec<u32>` of volume bracket discounts (parallel to thresholds).
     VolumeDiscounts,
+
+    // ── Rate limiting ──────────────────────────────────────────
+    /// Global rate limit configuration (`RateLimitConfig`).
+    RateLimitConfig,
+    /// Per-business submission timestamps within the current window.
+    /// Stores a `Vec<u64>` of ledger timestamps.
+    SubmissionTimestamps(Address),
 }
 
 /// On-chain fee configuration.
