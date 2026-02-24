@@ -123,31 +123,31 @@ impl VerificationResult {
     }
 
     /// Add a missing method to the result.
-    pub fn add_missing_method(&mut self, env: &Env, method: String) {
+    pub fn add_missing_method(&mut self, _env: &Env, method: String) {
         self.missing_methods.push_back(method);
         self.passed = false;
     }
 
     /// Add an undocumented method to the result.
-    pub fn add_undocumented_method(&mut self, env: &Env, method: String) {
+    pub fn add_undocumented_method(&mut self, _env: &Env, method: String) {
         self.undocumented_methods.push_back(method);
         self.passed = false;
     }
 
     /// Add a missing event to the result.
-    pub fn add_missing_event(&mut self, env: &Env, event: String) {
+    pub fn add_missing_event(&mut self, _env: &Env, event: String) {
         self.missing_events.push_back(event);
         self.passed = false;
     }
 
     /// Add a missing struct to the result.
-    pub fn add_missing_struct(&mut self, env: &Env, struct_name: String) {
+    pub fn add_missing_struct(&mut self, _env: &Env, struct_name: String) {
         self.missing_structs.push_back(struct_name);
         self.passed = false;
     }
 
     /// Add an error message.
-    pub fn add_error(&mut self, env: &Env, error: String) {
+    pub fn add_error(&mut self, _env: &Env, error: String) {
         self.errors.push_back(error);
         self.passed = false;
     }
@@ -171,29 +171,69 @@ pub fn get_expected_methods(env: &Env) -> Vec<MethodSpec> {
         ("revoke_role", "AttestationContract", "void", true),
         ("has_role", "AttestationContract", "bool", false),
         ("get_roles", "AttestationContract", "u32", false),
-        ("get_role_holders", "AttestationContract", "Vec<Address>", false),
+        (
+            "get_role_holders",
+            "AttestationContract",
+            "Vec<Address>",
+            false,
+        ),
         ("pause", "AttestationContract", "void", true),
         ("unpause", "AttestationContract", "void", true),
         ("is_paused", "AttestationContract", "bool", false),
         ("submit_attestation", "AttestationContract", "void", true),
-        ("submit_attestation_with_metadata", "AttestationContract", "void", true),
+        (
+            "submit_attestation_with_metadata",
+            "AttestationContract",
+            "void",
+            true,
+        ),
         ("revoke_attestation", "AttestationContract", "void", true),
         ("migrate_attestation", "AttestationContract", "void", true),
         ("is_revoked", "AttestationContract", "bool", false),
-        ("get_attestation", "AttestationContract", "Option<(BytesN<32>, u64, u32, i128)>", false),
-        ("get_attestation_metadata", "AttestationContract", "Option<AttestationMetadata>", false),
+        (
+            "get_attestation",
+            "AttestationContract",
+            "Option<(BytesN<32>, u64, u32, i128)>",
+            false,
+        ),
+        (
+            "get_attestation_metadata",
+            "AttestationContract",
+            "Option<AttestationMetadata>",
+            false,
+        ),
         ("verify_attestation", "AttestationContract", "bool", false),
         ("create_proposal", "AttestationContract", "u64", true),
         ("approve_proposal", "AttestationContract", "void", true),
         ("reject_proposal", "AttestationContract", "void", true),
         ("execute_proposal", "AttestationContract", "void", true),
-        ("get_proposal", "AttestationContract", "Option<Proposal>", false),
+        (
+            "get_proposal",
+            "AttestationContract",
+            "Option<Proposal>",
+            false,
+        ),
         ("get_approval_count", "AttestationContract", "u32", false),
         ("is_proposal_approved", "AttestationContract", "bool", false),
-        ("get_multisig_owners", "AttestationContract", "Vec<Address>", false),
-        ("get_multisig_threshold", "AttestationContract", "u32", false),
+        (
+            "get_multisig_owners",
+            "AttestationContract",
+            "Vec<Address>",
+            false,
+        ),
+        (
+            "get_multisig_threshold",
+            "AttestationContract",
+            "u32",
+            false,
+        ),
         ("is_multisig_owner", "AttestationContract", "bool", false),
-        ("get_fee_config", "AttestationContract", "Option<FeeConfig>", false),
+        (
+            "get_fee_config",
+            "AttestationContract",
+            "Option<FeeConfig>",
+            false,
+        ),
         ("get_fee_quote", "AttestationContract", "i128", false),
         ("get_business_tier", "AttestationContract", "u32", false),
         ("get_business_count", "AttestationContract", "u64", false),
@@ -214,10 +254,30 @@ pub fn get_expected_methods(env: &Env) -> Vec<MethodSpec> {
     // AggregatedAttestationsContract methods
     let aggregated_methods = [
         ("initialize", "AggregatedAttestationsContract", "void", true),
-        ("register_portfolio", "AggregatedAttestationsContract", "void", true),
-        ("get_aggregated_metrics", "AggregatedAttestationsContract", "AggregatedMetrics", false),
-        ("get_admin", "AggregatedAttestationsContract", "Address", false),
-        ("get_portfolio", "AggregatedAttestationsContract", "Option<Vec<Address>>", false),
+        (
+            "register_portfolio",
+            "AggregatedAttestationsContract",
+            "void",
+            true,
+        ),
+        (
+            "get_aggregated_metrics",
+            "AggregatedAttestationsContract",
+            "AggregatedMetrics",
+            false,
+        ),
+        (
+            "get_admin",
+            "AggregatedAttestationsContract",
+            "Address",
+            false,
+        ),
+        (
+            "get_portfolio",
+            "AggregatedAttestationsContract",
+            "Option<Vec<Address>>",
+            false,
+        ),
     ];
 
     for (name, contract, return_type, requires_auth) in aggregated_methods.iter() {
@@ -234,15 +294,40 @@ pub fn get_expected_methods(env: &Env) -> Vec<MethodSpec> {
     // AttestationSnapshotContract methods
     let snapshot_methods = [
         ("initialize", "AttestationSnapshotContract", "void", true),
-        ("set_attestation_contract", "AttestationSnapshotContract", "void", true),
+        (
+            "set_attestation_contract",
+            "AttestationSnapshotContract",
+            "void",
+            true,
+        ),
         ("add_writer", "AttestationSnapshotContract", "void", true),
         ("remove_writer", "AttestationSnapshotContract", "void", true),
         ("is_writer", "AttestationSnapshotContract", "bool", false),
-        ("record_snapshot", "AttestationSnapshotContract", "void", true),
-        ("get_snapshot", "AttestationSnapshotContract", "Option<SnapshotRecord>", false),
-        ("get_snapshots_for_business", "AttestationSnapshotContract", "Vec<SnapshotRecord>", false),
+        (
+            "record_snapshot",
+            "AttestationSnapshotContract",
+            "void",
+            true,
+        ),
+        (
+            "get_snapshot",
+            "AttestationSnapshotContract",
+            "Option<SnapshotRecord>",
+            false,
+        ),
+        (
+            "get_snapshots_for_business",
+            "AttestationSnapshotContract",
+            "Vec<SnapshotRecord>",
+            false,
+        ),
         ("get_admin", "AttestationSnapshotContract", "Address", false),
-        ("get_attestation_contract", "AttestationSnapshotContract", "Option<Address>", false),
+        (
+            "get_attestation_contract",
+            "AttestationSnapshotContract",
+            "Option<Address>",
+            false,
+        ),
     ];
 
     for (name, contract, return_type, requires_auth) in snapshot_methods.iter() {
@@ -261,9 +346,19 @@ pub fn get_expected_methods(env: &Env) -> Vec<MethodSpec> {
         ("initialize", "AuditLogContract", "void", true),
         ("append", "AuditLogContract", "u64", true),
         ("get_log_count", "AuditLogContract", "u64", false),
-        ("get_entry", "AuditLogContract", "Option<AuditRecord>", false),
+        (
+            "get_entry",
+            "AuditLogContract",
+            "Option<AuditRecord>",
+            false,
+        ),
         ("get_seqs_by_actor", "AuditLogContract", "Vec<u64>", false),
-        ("get_seqs_by_contract", "AuditLogContract", "Vec<u64>", false),
+        (
+            "get_seqs_by_contract",
+            "AuditLogContract",
+            "Vec<u64>",
+            false,
+        ),
         ("get_admin", "AuditLogContract", "Address", false),
     ];
 
@@ -281,23 +376,98 @@ pub fn get_expected_methods(env: &Env) -> Vec<MethodSpec> {
     // IntegrationRegistryContract methods
     let registry_methods = [
         ("initialize", "IntegrationRegistryContract", "void", true),
-        ("grant_governance", "IntegrationRegistryContract", "void", true),
-        ("revoke_governance", "IntegrationRegistryContract", "void", true),
-        ("register_provider", "IntegrationRegistryContract", "void", true),
-        ("enable_provider", "IntegrationRegistryContract", "void", true),
-        ("deprecate_provider", "IntegrationRegistryContract", "void", true),
-        ("disable_provider", "IntegrationRegistryContract", "void", true),
-        ("update_metadata", "IntegrationRegistryContract", "void", true),
-        ("get_provider", "IntegrationRegistryContract", "Option<Provider>", false),
+        (
+            "grant_governance",
+            "IntegrationRegistryContract",
+            "void",
+            true,
+        ),
+        (
+            "revoke_governance",
+            "IntegrationRegistryContract",
+            "void",
+            true,
+        ),
+        (
+            "register_provider",
+            "IntegrationRegistryContract",
+            "void",
+            true,
+        ),
+        (
+            "enable_provider",
+            "IntegrationRegistryContract",
+            "void",
+            true,
+        ),
+        (
+            "deprecate_provider",
+            "IntegrationRegistryContract",
+            "void",
+            true,
+        ),
+        (
+            "disable_provider",
+            "IntegrationRegistryContract",
+            "void",
+            true,
+        ),
+        (
+            "update_metadata",
+            "IntegrationRegistryContract",
+            "void",
+            true,
+        ),
+        (
+            "get_provider",
+            "IntegrationRegistryContract",
+            "Option<Provider>",
+            false,
+        ),
         ("is_enabled", "IntegrationRegistryContract", "bool", false),
-        ("is_deprecated", "IntegrationRegistryContract", "bool", false),
-        ("is_valid_for_attestation", "IntegrationRegistryContract", "bool", false),
-        ("get_status", "IntegrationRegistryContract", "Option<ProviderStatus>", false),
-        ("get_all_providers", "IntegrationRegistryContract", "Vec<String>", false),
-        ("get_enabled_providers", "IntegrationRegistryContract", "Vec<String>", false),
-        ("get_deprecated_providers", "IntegrationRegistryContract", "Vec<String>", false),
+        (
+            "is_deprecated",
+            "IntegrationRegistryContract",
+            "bool",
+            false,
+        ),
+        (
+            "is_valid_for_attestation",
+            "IntegrationRegistryContract",
+            "bool",
+            false,
+        ),
+        (
+            "get_status",
+            "IntegrationRegistryContract",
+            "Option<ProviderStatus>",
+            false,
+        ),
+        (
+            "get_all_providers",
+            "IntegrationRegistryContract",
+            "Vec<String>",
+            false,
+        ),
+        (
+            "get_enabled_providers",
+            "IntegrationRegistryContract",
+            "Vec<String>",
+            false,
+        ),
+        (
+            "get_deprecated_providers",
+            "IntegrationRegistryContract",
+            "Vec<String>",
+            false,
+        ),
         ("get_admin", "IntegrationRegistryContract", "Address", false),
-        ("has_governance", "IntegrationRegistryContract", "bool", false),
+        (
+            "has_governance",
+            "IntegrationRegistryContract",
+            "bool",
+            false,
+        ),
     ];
 
     for (name, contract, return_type, requires_auth) in registry_methods.iter() {
@@ -316,7 +486,12 @@ pub fn get_expected_methods(env: &Env) -> Vec<MethodSpec> {
         ("initialize", "RevenueStreamContract", "void", true),
         ("create_stream", "RevenueStreamContract", "u64", true),
         ("release", "RevenueStreamContract", "void", false),
-        ("get_stream", "RevenueStreamContract", "Option<Stream>", false),
+        (
+            "get_stream",
+            "RevenueStreamContract",
+            "Option<Stream>",
+            false,
+        ),
         ("get_admin", "RevenueStreamContract", "Address", false),
     ];
 
@@ -359,9 +534,17 @@ pub fn get_expected_events(env: &Env) -> Vec<EventSpec> {
     }
 
     let registry_events = [
-        ("ProviderRegistered", "prv_reg", "IntegrationRegistryContract"),
+        (
+            "ProviderRegistered",
+            "prv_reg",
+            "IntegrationRegistryContract",
+        ),
         ("ProviderEnabled", "prv_ena", "IntegrationRegistryContract"),
-        ("ProviderDeprecated", "prv_dep", "IntegrationRegistryContract"),
+        (
+            "ProviderDeprecated",
+            "prv_dep",
+            "IntegrationRegistryContract",
+        ),
         ("ProviderDisabled", "prv_dis", "IntegrationRegistryContract"),
         ("ProviderUpdated", "prv_upd", "IntegrationRegistryContract"),
     ];
@@ -433,11 +616,7 @@ pub fn get_expected_structs(env: &Env) -> Vec<StructSpec> {
         });
     }
 
-    let registry_structs = [
-        "Provider",
-        "ProviderStatus",
-        "ProviderMetadata",
-    ];
+    let registry_structs = ["Provider", "ProviderStatus", "ProviderMetadata"];
 
     for name in registry_structs.iter() {
         structs.push_back(StructSpec {
@@ -503,7 +682,7 @@ pub fn verify_interface_consistency(env: &Env) -> VerificationResult {
             .iter()
             .filter(|m| m.contract == String::from_str(env, contract))
             .count();
-        
+
         if actual_count != *expected_count {
             // Use a simple error message without format for no_std compatibility
             result.add_error(env, String::from_str(env, "Method count mismatch"));

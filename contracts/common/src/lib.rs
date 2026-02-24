@@ -1,6 +1,6 @@
 //! Shared test utilities and security invariant tests for Veritasor contracts.
 
-#![no_std]
+#![cfg_attr(not(test), no_std)]
 
 #[cfg(test)]
 pub mod interface_spec_check;
