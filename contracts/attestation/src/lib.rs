@@ -1,5 +1,6 @@
 #![no_std]
 use soroban_sdk::{contract, contractimpl, Address, BytesN, Env, String, Vec};
+use veritasor_common::replay_protection;
 
 // ─── Feature modules: add new `pub mod <name>;` here (one per feature) ───
 pub mod access_control;
@@ -45,6 +46,11 @@ const ADMIN_KEY_TAG: (u32,) = (2,);
 const AUTHORIZED_KEY_TAG: u32 = 3;
 const ANOMALY_SCORE_MAX: u32 = 100;
 
+// Logical nonce channels for replay protection (pub for client/test use).
+pub const NONCE_CHANNEL_ADMIN: u32 = 1;
+pub const NONCE_CHANNEL_BUSINESS: u32 = 2;
+pub const NONCE_CHANNEL_MULTISIG: u32 = 3;
+
 #[contract]
 pub struct AttestationContract;
 
@@ -58,11 +64,15 @@ impl AttestationContract {
     ///
     /// Must be called before any admin-gated method. The caller must
     /// authorize as `admin`.
-    pub fn initialize(env: Env, admin: Address) {
+    ///
+    /// Replay protection: uses the admin address and `NONCE_CHANNEL_ADMIN`.
+    /// The first valid call must supply `nonce = 0` for this pair.
+    pub fn initialize(env: Env, admin: Address, nonce: u64) {
         if dynamic_fees::is_initialized(&env) {
             panic!("already initialized");
         }
         admin.require_auth();
+        replay_protection::verify_and_increment_nonce(&env, &admin, NONCE_CHANNEL_ADMIN, nonce);
         dynamic_fees::set_admin(&env, &admin);
 
         // Grant ADMIN role to the initializing address
@@ -72,8 +82,11 @@ impl AttestationContract {
     /// Initialize multisig with owners and threshold.
     ///
     /// Must be called after `initialize`. Only the admin can set up multisig.
-    pub fn initialize_multisig(env: Env, owners: Vec<Address>, threshold: u32) {
-        dynamic_fees::require_admin(&env);
+    ///
+    /// Replay protection: uses the admin address and `NONCE_CHANNEL_ADMIN`.
+    pub fn initialize_multisig(env: Env, owners: Vec<Address>, threshold: u32, nonce: u64) {
+        let admin = dynamic_fees::require_admin(&env);
+        replay_protection::verify_and_increment_nonce(&env, &admin, NONCE_CHANNEL_ADMIN, nonce);
         multisig::initialize_multisig(&env, &owners, threshold);
     }
 
@@ -91,8 +104,10 @@ impl AttestationContract {
         collector: Address,
         base_fee: i128,
         enabled: bool,
+        nonce: u64,
     ) {
         let admin = dynamic_fees::require_admin(&env);
+        replay_protection::verify_and_increment_nonce(&env, &admin, NONCE_CHANNEL_ADMIN, nonce);
         assert!(base_fee >= 0, "base_fee must be non-negative");
         let config = FeeConfig {
             token: token.clone(),
@@ -113,14 +128,16 @@ impl AttestationContract {
     /// * Tier 2 = Enterprise.
     ///
     /// Higher tiers are allowed; the scheme is open-ended.
-    pub fn set_tier_discount(env: Env, tier: u32, discount_bps: u32) {
-        dynamic_fees::require_admin(&env);
+    pub fn set_tier_discount(env: Env, tier: u32, discount_bps: u32, nonce: u64) {
+        let admin = dynamic_fees::require_admin(&env);
+        replay_protection::verify_and_increment_nonce(&env, &admin, NONCE_CHANNEL_ADMIN, nonce);
         dynamic_fees::set_tier_discount(&env, tier, discount_bps);
     }
 
     /// Assign a business address to a fee tier.
-    pub fn set_business_tier(env: Env, business: Address, tier: u32) {
-        dynamic_fees::require_admin(&env);
+    pub fn set_business_tier(env: Env, business: Address, tier: u32, nonce: u64) {
+        let admin = dynamic_fees::require_admin(&env);
+        replay_protection::verify_and_increment_nonce(&env, &admin, NONCE_CHANNEL_ADMIN, nonce);
         dynamic_fees::set_business_tier(&env, &business, tier);
     }
 
@@ -132,14 +149,16 @@ impl AttestationContract {
     ///
     /// Example: thresholds `[10, 50, 100]`, discounts `[500, 1000, 2000]`
     /// means 5 % off after 10 attestations, 10 % after 50, 20 % after 100.
-    pub fn set_volume_brackets(env: Env, thresholds: Vec<u64>, discounts: Vec<u32>) {
-        dynamic_fees::require_admin(&env);
+    pub fn set_volume_brackets(env: Env, thresholds: Vec<u64>, discounts: Vec<u32>, nonce: u64) {
+        let admin = dynamic_fees::require_admin(&env);
+        replay_protection::verify_and_increment_nonce(&env, &admin, NONCE_CHANNEL_ADMIN, nonce);
         dynamic_fees::set_volume_brackets(&env, &thresholds, &discounts);
     }
 
     /// Toggle fee collection on or off without changing other config.
-    pub fn set_fee_enabled(env: Env, enabled: bool) {
-        dynamic_fees::require_admin(&env);
+    pub fn set_fee_enabled(env: Env, enabled: bool, nonce: u64) {
+        let admin = dynamic_fees::require_admin(&env);
+        replay_protection::verify_and_increment_nonce(&env, &admin, NONCE_CHANNEL_ADMIN, nonce);
         let mut config = dynamic_fees::get_fee_config(&env).expect("fees not configured");
         config.enabled = enabled;
         dynamic_fees::set_fee_config(&env, &config);
@@ -160,8 +179,10 @@ impl AttestationContract {
         max_submissions: u32,
         window_seconds: u64,
         enabled: bool,
+        nonce: u64,
     ) {
         let admin = dynamic_fees::require_admin(&env);
+        replay_protection::verify_and_increment_nonce(&env, &admin, NONCE_CHANNEL_ADMIN, nonce);
         let config = RateLimitConfig {
             max_submissions,
             window_seconds,
@@ -184,8 +205,9 @@ impl AttestationContract {
     /// Grant a role to an address.
     ///
     /// Only addresses with ADMIN role can grant roles.
-    pub fn grant_role(env: Env, caller: Address, account: Address, role: u32) {
+    pub fn grant_role(env: Env, caller: Address, account: Address, role: u32, nonce: u64) {
         access_control::require_admin(&env, &caller);
+        replay_protection::verify_and_increment_nonce(&env, &caller, NONCE_CHANNEL_ADMIN, nonce);
         access_control::grant_role(&env, &account, role);
         events::emit_role_granted(&env, &account, role, &caller);
     }
@@ -193,8 +215,9 @@ impl AttestationContract {
     /// Revoke a role from an address.
     ///
     /// Only addresses with ADMIN role can revoke roles.
-    pub fn revoke_role(env: Env, caller: Address, account: Address, role: u32) {
+    pub fn revoke_role(env: Env, caller: Address, account: Address, role: u32, nonce: u64) {
         access_control::require_admin(&env, &caller);
+        replay_protection::verify_and_increment_nonce(&env, &caller, NONCE_CHANNEL_ADMIN, nonce);
         access_control::revoke_role(&env, &account, role);
         events::emit_role_revoked(&env, &account, role, &caller);
     }
@@ -217,20 +240,22 @@ impl AttestationContract {
     // ── Pause/Unpause ───────────────────────────────────────────────
 
     /// Pause the contract. Only ADMIN or OPERATOR can pause.
-    pub fn pause(env: Env, caller: Address) {
+    pub fn pause(env: Env, caller: Address, nonce: u64) {
         caller.require_auth();
         let roles = access_control::get_roles(&env, &caller);
         assert!(
             (roles & (ROLE_ADMIN | ROLE_OPERATOR)) != 0,
             "caller must have ADMIN or OPERATOR role"
         );
+        replay_protection::verify_and_increment_nonce(&env, &caller, NONCE_CHANNEL_ADMIN, nonce);
         access_control::set_paused(&env, true);
         events::emit_paused(&env, &caller);
     }
 
     /// Unpause the contract. Only ADMIN can unpause.
-    pub fn unpause(env: Env, caller: Address) {
+    pub fn unpause(env: Env, caller: Address, nonce: u64) {
         access_control::require_admin(&env, &caller);
+        replay_protection::verify_and_increment_nonce(&env, &caller, NONCE_CHANNEL_ADMIN, nonce);
         access_control::set_paused(&env, false);
         events::emit_unpaused(&env, &caller);
     }
@@ -269,9 +294,16 @@ impl AttestationContract {
         timestamp: u64,
         version: u32,
         expiry_timestamp: Option<u64>,
+        nonce: u64,
     ) {
         access_control::require_not_paused(&env);
         business.require_auth();
+        replay_protection::verify_and_increment_nonce(
+            &env,
+            &business,
+            NONCE_CHANNEL_BUSINESS,
+            nonce,
+        );
 
         // Enforce rate limit before any fee collection or state mutation.
         rate_limit::check_rate_limit(&env, &business);
@@ -326,9 +358,16 @@ impl AttestationContract {
         version: u32,
         currency_code: String,
         is_net: bool,
+        nonce: u64,
     ) {
         access_control::require_not_paused(&env);
         business.require_auth();
+        replay_protection::verify_and_increment_nonce(
+            &env,
+            &business,
+            NONCE_CHANNEL_BUSINESS,
+            nonce,
+        );
 
         let key = DataKey::Attestation(business.clone(), period.clone());
         if env.storage().instance().has(&key) {
@@ -371,8 +410,10 @@ impl AttestationContract {
         business: Address,
         period: String,
         reason: String,
+        nonce: u64,
     ) {
         access_control::require_admin(&env, &caller);
+        replay_protection::verify_and_increment_nonce(&env, &caller, NONCE_CHANNEL_ADMIN, nonce);
 
         let key = DataKey::Attestation(business.clone(), period.clone());
         assert!(env.storage().instance().has(&key), "attestation not found");
@@ -395,8 +436,10 @@ impl AttestationContract {
         period: String,
         new_merkle_root: BytesN<32>,
         new_version: u32,
+        nonce: u64,
     ) {
         access_control::require_admin(&env, &caller);
+        replay_protection::verify_and_increment_nonce(&env, &caller, NONCE_CHANNEL_ADMIN, nonce);
 
         let key = DataKey::Attestation(business.clone(), period.clone());
         let (old_merkle_root, timestamp, old_version, fee_paid, expiry_timestamp): (
@@ -511,8 +554,9 @@ impl AttestationContract {
     /// One-time setup of the admin address. Admin is the single authorized updater of the
     /// authorized-analytics set. Anomaly data is stored under a separate instance key and
     /// never modifies attestation (merkle root, timestamp, version) storage.
-    pub fn init(env: Env, admin: Address) {
+    pub fn init(env: Env, admin: Address, nonce: u64) {
         admin.require_auth();
+        replay_protection::verify_and_increment_nonce(&env, &admin, NONCE_CHANNEL_ADMIN, nonce);
         if env.storage().instance().has(&ADMIN_KEY_TAG) {
             panic!("admin already set");
         }
@@ -520,7 +564,7 @@ impl AttestationContract {
     }
 
     /// Adds an address to the set of authorized updaters (analytics/oracle). Caller must be admin.
-    pub fn add_authorized_analytics(env: Env, caller: Address, analytics: Address) {
+    pub fn add_authorized_analytics(env: Env, caller: Address, analytics: Address, nonce: u64) {
         caller.require_auth();
         let admin: Address = env
             .storage()
@@ -530,12 +574,13 @@ impl AttestationContract {
         if caller != admin {
             panic!("caller is not admin");
         }
+        replay_protection::verify_and_increment_nonce(&env, &caller, NONCE_CHANNEL_ADMIN, nonce);
         let key = (AUTHORIZED_KEY_TAG, analytics);
         env.storage().instance().set(&key, &());
     }
 
     /// Removes an address from the set of authorized updaters. Caller must be admin.
-    pub fn remove_authorized_analytics(env: Env, caller: Address, analytics: Address) {
+    pub fn remove_authorized_analytics(env: Env, caller: Address, analytics: Address, nonce: u64) {
         caller.require_auth();
         let admin: Address = env
             .storage()
@@ -545,6 +590,7 @@ impl AttestationContract {
         if caller != admin {
             panic!("caller is not admin");
         }
+        replay_protection::verify_and_increment_nonce(&env, &caller, NONCE_CHANNEL_ADMIN, nonce);
         let key = (AUTHORIZED_KEY_TAG, analytics);
         env.storage().instance().remove(&key);
     }
@@ -560,8 +606,10 @@ impl AttestationContract {
         period: String,
         flags: u32,
         score: u32,
+        nonce: u64,
     ) {
         updater.require_auth();
+        replay_protection::verify_and_increment_nonce(&env, &updater, NONCE_CHANNEL_ADMIN, nonce);
         let key_auth = (AUTHORIZED_KEY_TAG, updater.clone());
         if !env.storage().instance().has(&key_auth) {
             panic!("updater not authorized");
@@ -578,48 +626,64 @@ impl AttestationContract {
     }
 
     /// Returns anomaly flags and risk score for (business, period) if set. For use by lenders.
-    pub fn get_anomaly(
-        env: Env,
-        business: Address,
-        period: String,
-    ) -> Option<(u32, u32)> {
+    pub fn get_anomaly(env: Env, business: Address, period: String) -> Option<(u32, u32)> {
         let key = (ANOMALY_KEY_TAG, business, period);
         env.storage().instance().get(&key)
     }
-}
 
-mod test;
-#[cfg(test)]
-mod anomaly_test;
     // ── Multisig Operations ─────────────────────────────────────────
 
     /// Create a new multisig proposal.
     ///
     /// Only multisig owners can create proposals.
-    pub fn create_proposal(env: Env, proposer: Address, action: ProposalAction) -> u64 {
+    pub fn create_proposal(env: Env, proposer: Address, action: ProposalAction, nonce: u64) -> u64 {
+        replay_protection::verify_and_increment_nonce(
+            &env,
+            &proposer,
+            NONCE_CHANNEL_MULTISIG,
+            nonce,
+        );
         multisig::create_proposal(&env, &proposer, action)
     }
 
     /// Approve a multisig proposal.
     ///
     /// Only multisig owners can approve proposals.
-    pub fn approve_proposal(env: Env, approver: Address, proposal_id: u64) {
+    pub fn approve_proposal(env: Env, approver: Address, proposal_id: u64, nonce: u64) {
+        replay_protection::verify_and_increment_nonce(
+            &env,
+            &approver,
+            NONCE_CHANNEL_MULTISIG,
+            nonce,
+        );
         multisig::approve_proposal(&env, &approver, proposal_id);
     }
 
     /// Reject a multisig proposal.
     ///
     /// Only the proposer or a multisig owner can reject.
-    pub fn reject_proposal(env: Env, rejecter: Address, proposal_id: u64) {
+    pub fn reject_proposal(env: Env, rejecter: Address, proposal_id: u64, nonce: u64) {
+        replay_protection::verify_and_increment_nonce(
+            &env,
+            &rejecter,
+            NONCE_CHANNEL_MULTISIG,
+            nonce,
+        );
         multisig::reject_proposal(&env, &rejecter, proposal_id);
     }
 
     /// Execute an approved multisig proposal.
     ///
     /// The proposal must have reached the approval threshold.
-    pub fn execute_proposal(env: Env, executor: Address, proposal_id: u64) {
-        multisig::require_owner(&env, &executor);
+    pub fn execute_proposal(env: Env, executor: Address, proposal_id: u64, nonce: u64) {
+        replay_protection::verify_and_increment_nonce(
+            &env,
+            &executor,
+            NONCE_CHANNEL_MULTISIG,
+            nonce,
+        );
 
+        multisig::require_owner(&env, &executor);
         assert!(
             multisig::is_proposal_approved(&env, proposal_id),
             "proposal not approved"
@@ -729,6 +793,14 @@ mod anomaly_test;
     /// Return the contract admin address.
     pub fn get_admin(env: Env) -> Address {
         dynamic_fees::get_admin(&env)
+    }
+
+    /// Return the current nonce for a given `(actor, channel)` pair.
+    ///
+    /// This is the value that must be supplied as `nonce` on the next
+    /// state-mutating call for that actor and channel.
+    pub fn get_replay_nonce(env: Env, actor: Address, channel: u32) -> u64 {
+        replay_protection::get_nonce(&env, &actor, channel)
     }
 
     // ── Rate-limit queries ──────────────────────────────────────────
