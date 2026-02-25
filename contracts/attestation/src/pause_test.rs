@@ -33,7 +33,7 @@ fn submit_and_get_attestation_pause_unpause() {
 
     client.submit_attestation(&business, &period, &root, &timestamp, &version, &None);
 
-    let (stored_root, stored_ts, stored_ver, stored_fee,_) =
+    let (stored_root, stored_ts, stored_ver, stored_fee, _) =
         client.get_attestation(&business, &period).unwrap();
     assert_eq!(stored_root, root);
     assert_eq!(stored_ts, timestamp);

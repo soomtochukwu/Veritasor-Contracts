@@ -21,7 +21,10 @@ fn period_str(env: &Env, i: u32) -> String {
     String::from_str(env, s)
 }
 
-fn setup_with_attestations(env: &Env, n: u32) -> (Address, AttestationContractClient<'_>, Vec<String>) {
+fn setup_with_attestations(
+    env: &Env,
+    n: u32,
+) -> (Address, AttestationContractClient<'_>, Vec<String>) {
     let contract_id = env.register(AttestationContract, ());
     let client = AttestationContractClient::new(env, &contract_id);
     let business = Address::generate(env);
@@ -246,7 +249,10 @@ fn get_attestations_page_filter_active_after_revoke() {
         &0,
     );
     assert_eq!(revoked_only.len(), 1);
-    assert_eq!(revoked_only.get(0).unwrap().0, String::from_str(&env, "2026-02"));
+    assert_eq!(
+        revoked_only.get(0).unwrap().0,
+        String::from_str(&env, "2026-02")
+    );
 }
 
 #[test]
@@ -342,8 +348,20 @@ fn periods_list_includes_missing_attestations_skipped() {
     let p1 = String::from_str(&env, "2026-01");
     let p2 = String::from_str(&env, "2026-02");
     let p3 = String::from_str(&env, "2026-03");
-    client.submit_attestation(&business, &p1, &BytesN::from_array(&env, &[1u8; 32]), &1700000000u64, &1u32);
-    client.submit_attestation(&business, &p3, &BytesN::from_array(&env, &[3u8; 32]), &1700000000u64, &1u32);
+    client.submit_attestation(
+        &business,
+        &p1,
+        &BytesN::from_array(&env, &[1u8; 32]),
+        &1700000000u64,
+        &1u32,
+    );
+    client.submit_attestation(
+        &business,
+        &p3,
+        &BytesN::from_array(&env, &[3u8; 32]),
+        &1700000000u64,
+        &1u32,
+    );
     let mut periods = Vec::new(&env);
     periods.push_back(p1.clone());
     periods.push_back(p2.clone());

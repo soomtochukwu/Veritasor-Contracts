@@ -1,6 +1,6 @@
 #![no_std]
 use core::cmp::Ordering;
-use soroban_sdk::{contract, contractimpl, Address, BytesN, Env, String, Vec};
+use soroban_sdk::{contract, contractimpl, Address, BytesN, Env, String, Symbol, Vec};
 
 const STATUS_KEY_TAG: u32 = 1;
 const ADMIN_KEY_TAG: (u32,) = (2,);
@@ -9,8 +9,6 @@ const QUERY_LIMIT_MAX: u32 = 30;
 pub const STATUS_ACTIVE: u32 = 0;
 pub const STATUS_REVOKED: u32 = 1;
 pub const STATUS_FILTER_ALL: u32 = 2;
-use soroban_sdk::{contract, contractimpl, Address, BytesN, Env, String, Vec};
-use soroban_sdk::{contract, contractimpl, Address, BytesN, Env, String, Symbol, Vec};
 
 // Type aliases to reduce complexity - exported for other contracts
 pub type AttestationData = (BytesN<32>, u64, u32, i128, Option<u64>);
@@ -25,8 +23,8 @@ pub mod dynamic_fees;
 pub mod events;
 pub mod extended_metadata;
 pub mod multisig;
-pub mod registry;
 pub mod rate_limit;
+pub mod registry;
 // ─── End feature modules ───
 
 // ─── Re-exports: add new `pub use <module>::...` here if needed ───
@@ -35,8 +33,8 @@ pub use dynamic_fees::{compute_fee, DataKey, FeeConfig};
 pub use events::{AttestationMigratedEvent, AttestationRevokedEvent, AttestationSubmittedEvent};
 pub use extended_metadata::{AttestationMetadata, RevenueBasis};
 pub use multisig::{Proposal, ProposalAction, ProposalStatus};
-pub use registry::{BusinessRecord, BusinessStatus};
 pub use rate_limit::RateLimitConfig;
+pub use registry::{BusinessRecord, BusinessStatus};
 // ─── End re-exports ───
 
 // ─── Test modules: add new `mod <name>_test;` here ───
@@ -59,9 +57,9 @@ mod key_rotation_test;
 #[cfg(test)]
 mod multisig_test;
 #[cfg(test)]
-mod revocation_test;
-#[cfg(test)]
 mod pause_test;
+#[cfg(test)]
+mod revocation_test;
 #[cfg(test)]
 mod test;
 // ─── End test modules ───
@@ -71,9 +69,20 @@ pub mod dispute;
 mod registry_test;
 
 const ANOMALY_KEY_TAG: u32 = 1;
-const ADMIN_KEY_TAG: (u32,) = (2,);
 const AUTHORIZED_KEY_TAG: u32 = 3;
 const ANOMALY_SCORE_MAX: u32 = 100;
+
+/// Batch attestation item for submit_attestations_batch
+#[contracttype]
+#[derive(Clone, Debug)]
+pub struct BatchAttestationItem {
+    pub business: Address,
+    pub period: String,
+    pub merkle_root: BytesN<32>,
+    pub timestamp: u64,
+    pub version: u32,
+    pub expiry_timestamp: Option<u64>,
+}
 
 #[contract]
 pub struct AttestationContract;
@@ -527,7 +536,6 @@ impl AttestationContract {
         version: u32,
         expiry_timestamp: Option<u64>,
     ) {
-        let key = (business.clone(), period.clone());
         access_control::require_not_paused(&env);
         business.require_auth();
 
@@ -558,7 +566,7 @@ impl AttestationContract {
             expiry_timestamp,
         );
         env.storage().instance().set(&key, &data);
-        let status_key = (STATUS_KEY_TAG, business, period);
+        let status_key = (STATUS_KEY_TAG, business.clone(), period.clone());
         env.storage().instance().set(&status_key, &STATUS_ACTIVE);
 
         // Record successful submission for rate-limit tracking.
@@ -870,32 +878,10 @@ impl AttestationContract {
         env.storage().instance().set(&ADMIN_KEY_TAG, &admin);
     }
 
-    /// Revoke an attestation. Caller must be admin. Status is set to revoked (1).
-    pub fn revoke_attestation(env: Env, caller: Address, business: Address, period: String) {
-        caller.require_auth();
-        let admin: Address = env
-            .storage()
-            .instance()
-            .get(&ADMIN_KEY_TAG)
-            .expect("admin not set");
-        if caller != admin {
-            panic!("caller is not admin");
-        }
-        let attest_key = (business.clone(), period.clone());
-        if !env.storage().instance().has(&attest_key) {
-            panic!("attestation does not exist");
-        }
-        let status_key = (STATUS_KEY_TAG, business, period);
-        env.storage().instance().set(&status_key, &STATUS_REVOKED);
-    }
-
     /// Returns status for (business, period): 0 active, 1 revoked. Defaults to active if not set.
     fn get_status(env: &Env, business: &Address, period: &String) -> u32 {
         let key = (STATUS_KEY_TAG, business.clone(), period.clone());
-        env.storage()
-            .instance()
-            .get(&key)
-            .unwrap_or(STATUS_ACTIVE)
+        env.storage().instance().get(&key).unwrap_or(STATUS_ACTIVE)
     }
 
     /// Paginated query: returns attestations for the given business and period list, with optional filters.
@@ -938,13 +924,16 @@ impl AttestationContract {
                 continue;
             }
             let key = (business.clone(), period.clone());
-            if let Some((root, ts, ver)) = env.storage().instance().get::<_, (BytesN<32>, u64, u32)>(&key) {
+            if let Some((root, ts, ver)) = env
+                .storage()
+                .instance()
+                .get::<_, (BytesN<32>, u64, u32)>(&key)
+            {
                 let status = Self::get_status(&env, &business, &period);
                 let status_ok = status_filter == STATUS_FILTER_ALL
                     || (status_filter == STATUS_ACTIVE && status == STATUS_ACTIVE)
                     || (status_filter == STATUS_REVOKED && status == STATUS_REVOKED);
-                let version_ok =
-                    version_filter.map_or(true, |v| v == ver);
+                let version_ok = version_filter.map_or(true, |v| v == ver);
                 if status_ok && version_ok {
                     out.push_back((period.clone(), root, ts, ver, status));
                 }
@@ -954,11 +943,7 @@ impl AttestationContract {
         }
         (out, cursor + scanned)
     }
-}
 
-mod test;
-#[cfg(test)]
-mod query_pagination_test;
     /// Get all attestations for a business with their revocation status.
     ///
     /// This method is useful for audit and reporting purposes.
@@ -989,11 +974,18 @@ mod query_pagination_test;
             results.push_back((period.clone(), attestation_data, revocation_info));
         }
 
+        results
+    }
+}
+
+#[cfg(test)]
+mod query_pagination_test;
+mod test;
+
     /// Returns anomaly flags and risk score for (business, period) if set. For use by lenders.
     pub fn get_anomaly(env: Env, business: Address, period: String) -> Option<(u32, u32)> {
         let key = (ANOMALY_KEY_TAG, business, period);
         env.storage().instance().get(&key)
-        results
     }
 
     // ── Multisig Operations ─────────────────────────────────────────
@@ -1078,11 +1070,7 @@ mod query_pagination_test;
                 let old_admin = dynamic_fees::get_admin(&env);
 
                 // Execute emergency rotation (no timelock)
-                veritasor_common::key_rotation::emergency_rotate(
-                    &env,
-                    &old_admin,
-                    new_admin,
-                );
+                veritasor_common::key_rotation::emergency_rotate(&env, &old_admin, new_admin);
 
                 // Transfer admin in dynamic_fees storage
                 dynamic_fees::set_admin(&env, new_admin);
@@ -1091,9 +1079,7 @@ mod query_pagination_test;
                 access_control::revoke_role(&env, &old_admin, ROLE_ADMIN);
                 access_control::grant_role(&env, new_admin, ROLE_ADMIN);
 
-                events::emit_key_rotation_confirmed(
-                    &env, &old_admin, new_admin, true,
-                );
+                events::emit_key_rotation_confirmed(&env, &old_admin, new_admin, true);
             }
         }
 
@@ -1201,11 +1187,8 @@ mod query_pagination_test;
     /// rotation to complete.
     pub fn propose_key_rotation(env: Env, new_admin: Address) {
         let current_admin = dynamic_fees::require_admin(&env);
-        let request = veritasor_common::key_rotation::propose_rotation(
-            &env,
-            &current_admin,
-            &new_admin,
-        );
+        let request =
+            veritasor_common::key_rotation::propose_rotation(&env, &current_admin, &new_admin);
         events::emit_key_rotation_proposed(
             &env,
             &current_admin,
@@ -1276,9 +1259,7 @@ mod query_pagination_test;
     }
 
     /// Get the current key rotation configuration.
-    pub fn get_key_rotation_config(
-        env: Env,
-    ) -> veritasor_common::key_rotation::RotationConfig {
+    pub fn get_key_rotation_config(env: Env) -> veritasor_common::key_rotation::RotationConfig {
         veritasor_common::key_rotation::get_rotation_config(&env)
     }
 

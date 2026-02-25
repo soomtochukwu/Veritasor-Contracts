@@ -101,7 +101,8 @@ fn test_confirm_key_rotation() {
     client.propose_key_rotation(&new_admin);
 
     // Advance past timelock
-    env.ledger().set_sequence_number(env.ledger().sequence() + 11);
+    env.ledger()
+        .set_sequence_number(env.ledger().sequence() + 11);
 
     client.confirm_key_rotation(&new_admin);
 
@@ -120,7 +121,8 @@ fn test_key_rotation_history_after_confirm() {
     assert_eq!(client.get_key_rotation_count(), 0);
 
     client.propose_key_rotation(&new_admin);
-    env.ledger().set_sequence_number(env.ledger().sequence() + 11);
+    env.ledger()
+        .set_sequence_number(env.ledger().sequence() + 11);
     client.confirm_key_rotation(&new_admin);
 
     assert_eq!(client.get_key_rotation_count(), 1);
@@ -241,7 +243,8 @@ fn test_full_planned_rotation_scenario() {
     assert!(client.has_pending_key_rotation());
 
     // Step 2: Wait for timelock
-    env.ledger().set_sequence_number(env.ledger().sequence() + 11);
+    env.ledger()
+        .set_sequence_number(env.ledger().sequence() + 11);
 
     // Step 3: New admin confirms
     client.confirm_key_rotation(&new_admin);
@@ -266,7 +269,8 @@ fn test_rotation_preserves_other_roles() {
 
     // Rotate admin
     client.propose_key_rotation(&new_admin);
-    env.ledger().set_sequence_number(env.ledger().sequence() + 11);
+    env.ledger()
+        .set_sequence_number(env.ledger().sequence() + 11);
     client.confirm_key_rotation(&new_admin);
 
     // Other roles unaffected
@@ -280,7 +284,8 @@ fn test_new_admin_can_operate_after_rotation() {
 
     // Rotate admin
     client.propose_key_rotation(&new_admin);
-    env.ledger().set_sequence_number(env.ledger().sequence() + 11);
+    env.ledger()
+        .set_sequence_number(env.ledger().sequence() + 11);
     client.confirm_key_rotation(&new_admin);
 
     // New admin can grant roles
@@ -297,17 +302,20 @@ fn test_sequential_rotations_with_cooldown() {
 
     // Rotation 1: admin → admin_b
     client.propose_key_rotation(&admin_b);
-    env.ledger().set_sequence_number(env.ledger().sequence() + 11);
+    env.ledger()
+        .set_sequence_number(env.ledger().sequence() + 11);
     client.confirm_key_rotation(&admin_b);
     assert_eq!(client.get_admin(), admin_b);
     assert!(!client.has_role(&admin, &ROLE_ADMIN));
 
     // Wait for cooldown
-    env.ledger().set_sequence_number(env.ledger().sequence() + 6);
+    env.ledger()
+        .set_sequence_number(env.ledger().sequence() + 6);
 
     // Rotation 2: admin_b → admin_c
     client.propose_key_rotation(&admin_c);
-    env.ledger().set_sequence_number(env.ledger().sequence() + 11);
+    env.ledger()
+        .set_sequence_number(env.ledger().sequence() + 11);
     client.confirm_key_rotation(&admin_c);
     assert_eq!(client.get_admin(), admin_c);
     assert!(!client.has_role(&admin_b, &ROLE_ADMIN));
@@ -329,7 +337,8 @@ fn test_cancel_then_repropose() {
 
     // Repropose to correct address
     client.propose_key_rotation(&right_admin);
-    env.ledger().set_sequence_number(env.ledger().sequence() + 11);
+    env.ledger()
+        .set_sequence_number(env.ledger().sequence() + 11);
     client.confirm_key_rotation(&right_admin);
 
     assert_eq!(client.get_admin(), right_admin);

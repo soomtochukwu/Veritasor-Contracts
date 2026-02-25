@@ -42,8 +42,14 @@ impl TestEnv {
         timestamp: u64,
         version: u32,
     ) {
-        self.client
-            .submit_attestation(&business, &period, &merkle_root, &timestamp, &version, &None);
+        self.client.submit_attestation(
+            &business,
+            &period,
+            &merkle_root,
+            &timestamp,
+            &version,
+            &None,
+        );
     }
 
     pub fn revoke_attestation(

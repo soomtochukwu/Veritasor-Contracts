@@ -195,10 +195,7 @@ pub fn propose_rotation(
     );
 
     // No pending rotation allowed
-    assert!(
-        !has_pending_rotation(env),
-        "a rotation is already pending"
-    );
+    assert!(!has_pending_rotation(env), "a rotation is already pending");
 
     // Check cooldown
     let config = get_rotation_config(env);
@@ -328,11 +325,7 @@ pub fn cancel_rotation(env: &Env, current_admin: &Address) -> RotationRequest {
 /// of the calling contract's `execute_proposal` handler.
 ///
 /// Returns the completed `RotationRequest`.
-pub fn emergency_rotate(
-    env: &Env,
-    old_admin: &Address,
-    new_admin: &Address,
-) -> RotationRequest {
+pub fn emergency_rotate(env: &Env, old_admin: &Address, new_admin: &Address) -> RotationRequest {
     assert!(
         old_admin != new_admin,
         "new admin must differ from current admin"

@@ -420,8 +420,7 @@ pub fn emit_key_rotation_proposed(
         timelock_until,
         expires_at,
     };
-    env.events()
-        .publish((TOPIC_KEY_ROTATION_PROPOSED,), event);
+    env.events().publish((TOPIC_KEY_ROTATION_PROPOSED,), event);
 }
 
 /// Emit a key rotation confirmed event.
@@ -438,8 +437,7 @@ pub fn emit_key_rotation_confirmed(
         new_admin: new_admin.clone(),
         is_emergency,
     };
-    env.events()
-        .publish((TOPIC_KEY_ROTATION_CONFIRMED,), event);
+    env.events().publish((TOPIC_KEY_ROTATION_CONFIRMED,), event);
 }
 
 /// Emit a key rotation cancelled event.
@@ -454,6 +452,5 @@ pub fn emit_key_rotation_cancelled(
         cancelled_by: cancelled_by.clone(),
         proposed_new_admin: proposed_new_admin.clone(),
     };
-    env.events()
-        .publish((TOPIC_KEY_ROTATION_CANCELLED,), event);
+    env.events().publish((TOPIC_KEY_ROTATION_CANCELLED,), event);
 }
