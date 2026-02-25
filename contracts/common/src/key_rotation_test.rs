@@ -187,7 +187,8 @@ fn test_confirm_rotation_happy_path() {
         propose_rotation(&env, &old_admin, &new_admin);
 
         // Advance past timelock
-        env.ledger().set_sequence_number(env.ledger().sequence() + 11);
+        env.ledger()
+            .set_sequence_number(env.ledger().sequence() + 11);
 
         let result = confirm_rotation(&env, &new_admin);
         assert_eq!(result.status, RotationStatus::Completed);
@@ -204,7 +205,8 @@ fn test_confirm_rotation_records_history() {
         let new_admin = Address::generate(&env);
 
         propose_rotation(&env, &old_admin, &new_admin);
-        env.ledger().set_sequence_number(env.ledger().sequence() + 11);
+        env.ledger()
+            .set_sequence_number(env.ledger().sequence() + 11);
         confirm_rotation(&env, &new_admin);
 
         let history = get_rotation_history(&env);
@@ -227,7 +229,8 @@ fn test_confirm_rotation_increments_count() {
         let old_admin = Address::generate(&env);
         let new_admin = Address::generate(&env);
         propose_rotation(&env, &old_admin, &new_admin);
-        env.ledger().set_sequence_number(env.ledger().sequence() + 11);
+        env.ledger()
+            .set_sequence_number(env.ledger().sequence() + 11);
         confirm_rotation(&env, &new_admin);
 
         assert_eq!(get_rotation_count(&env), 1);
@@ -261,7 +264,8 @@ fn test_confirm_after_expiry_fails() {
         propose_rotation(&env, &old_admin, &new_admin);
 
         // Advance past expiry (timelock 10 + window 20 + 1)
-        env.ledger().set_sequence_number(env.ledger().sequence() + 31);
+        env.ledger()
+            .set_sequence_number(env.ledger().sequence() + 31);
 
         confirm_rotation(&env, &new_admin);
     });
@@ -278,7 +282,8 @@ fn test_confirm_by_wrong_address_fails() {
         let imposter = Address::generate(&env);
 
         propose_rotation(&env, &old_admin, &new_admin);
-        env.ledger().set_sequence_number(env.ledger().sequence() + 11);
+        env.ledger()
+            .set_sequence_number(env.ledger().sequence() + 11);
 
         confirm_rotation(&env, &imposter);
     });
@@ -444,7 +449,8 @@ fn test_cooldown_enforced_after_rotation() {
         let newer_admin = Address::generate(&env);
 
         propose_rotation(&env, &old_admin, &new_admin);
-        env.ledger().set_sequence_number(env.ledger().sequence() + 11);
+        env.ledger()
+            .set_sequence_number(env.ledger().sequence() + 11);
         confirm_rotation(&env, &new_admin);
 
         // Immediately try another — should fail because cooldown is 5
@@ -462,11 +468,13 @@ fn test_cooldown_passes_after_sufficient_ledgers() {
         let newer_admin = Address::generate(&env);
 
         propose_rotation(&env, &old_admin, &new_admin);
-        env.ledger().set_sequence_number(env.ledger().sequence() + 11);
+        env.ledger()
+            .set_sequence_number(env.ledger().sequence() + 11);
         confirm_rotation(&env, &new_admin);
 
         // Advance past cooldown
-        env.ledger().set_sequence_number(env.ledger().sequence() + 6);
+        env.ledger()
+            .set_sequence_number(env.ledger().sequence() + 6);
 
         // Should succeed now
         let request = propose_rotation(&env, &new_admin, &newer_admin);
@@ -541,7 +549,8 @@ fn test_expired_rotation_allows_new_proposal() {
         propose_rotation(&env, &old_admin, &new_admin1);
 
         // Advance past expiry
-        env.ledger().set_sequence_number(env.ledger().sequence() + 31);
+        env.ledger()
+            .set_sequence_number(env.ledger().sequence() + 31);
 
         // The old rotation is expired, so has_pending_rotation returns false
         assert!(!has_pending_rotation(&env));
@@ -662,7 +671,8 @@ fn test_planned_rotation_full_scenario() {
         assert!(has_pending_rotation(&env));
 
         // Step 2: Wait for timelock
-        env.ledger().set_sequence_number(env.ledger().sequence() + 11);
+        env.ledger()
+            .set_sequence_number(env.ledger().sequence() + 11);
 
         // Step 3: Admin B confirms
         let completed = confirm_rotation(&env, &admin_b);
@@ -737,15 +747,18 @@ fn test_multiple_rotations_sequential() {
 
         // Rotation 1: admin1 → admin2
         propose_rotation(&env, &admin1, &admin2);
-        env.ledger().set_sequence_number(env.ledger().sequence() + 3);
+        env.ledger()
+            .set_sequence_number(env.ledger().sequence() + 3);
         confirm_rotation(&env, &admin2);
 
         // Wait for cooldown
-        env.ledger().set_sequence_number(env.ledger().sequence() + 4);
+        env.ledger()
+            .set_sequence_number(env.ledger().sequence() + 4);
 
         // Rotation 2: admin2 → admin3
         propose_rotation(&env, &admin2, &admin3);
-        env.ledger().set_sequence_number(env.ledger().sequence() + 3);
+        env.ledger()
+            .set_sequence_number(env.ledger().sequence() + 3);
         confirm_rotation(&env, &admin3);
 
         // Verify complete history
@@ -780,7 +793,8 @@ fn test_cancel_then_repropose_then_confirm() {
         propose_rotation(&env, &admin, &right_new);
 
         // Confirm
-        env.ledger().set_sequence_number(env.ledger().sequence() + 11);
+        env.ledger()
+            .set_sequence_number(env.ledger().sequence() + 11);
         let result = confirm_rotation(&env, &right_new);
         assert_eq!(result.status, RotationStatus::Completed);
         assert_eq!(result.new_admin, right_new);

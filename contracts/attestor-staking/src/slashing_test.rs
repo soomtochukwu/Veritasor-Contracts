@@ -2,10 +2,17 @@
 use super::*;
 use soroban_sdk::{testutils::Address as _, token, Address, Env};
 
-fn create_token_contract<'a>(env: &Env, admin: &Address) -> (Address, token::StellarAssetClient<'a>, token::Client<'a>) {
+fn create_token_contract<'a>(
+    env: &Env,
+    admin: &Address,
+) -> (Address, token::StellarAssetClient<'a>, token::Client<'a>) {
     let contract_id = env.register_stellar_asset_contract_v2(admin.clone());
     let addr = contract_id.address();
-    (addr.clone(), token::StellarAssetClient::new(env, &addr), token::Client::new(env, &addr))
+    (
+        addr.clone(),
+        token::StellarAssetClient::new(env, &addr),
+        token::Client::new(env, &addr),
+    )
 }
 
 #[test]
@@ -207,7 +214,10 @@ fn test_dispute_resolution_triggers_slashing() {
 
     assert_eq!(outcome, SlashOutcome::Slashed);
     assert_eq!(client.get_stake(&attestor).unwrap().amount, 3500);
-    assert_eq!(token_client.balance(&treasury), initial_treasury + slash_amount);
+    assert_eq!(
+        token_client.balance(&treasury),
+        initial_treasury + slash_amount
+    );
 }
 
 /// Test scenario: Frivolous slashing attempt (unauthorized caller)

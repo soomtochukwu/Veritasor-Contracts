@@ -62,7 +62,9 @@ impl AttestorStakingContract {
         env.storage().instance().set(&DataKey::Token, &token);
         env.storage().instance().set(&DataKey::Treasury, &treasury);
         env.storage().instance().set(&DataKey::MinStake, &min_stake);
-        env.storage().instance().set(&DataKey::DisputeContract, &dispute_contract);
+        env.storage()
+            .instance()
+            .set(&DataKey::DisputeContract, &dispute_contract);
     }
 
     /// Stake tokens as an attestor
@@ -78,15 +80,11 @@ impl AttestorStakingContract {
         let min_stake: i128 = env.storage().instance().get(&DataKey::MinStake).unwrap();
 
         let stake_key = DataKey::Stake(attestor.clone());
-        let mut stake: Stake = env
-            .storage()
-            .instance()
-            .get(&stake_key)
-            .unwrap_or(Stake {
-                attestor: attestor.clone(),
-                amount: 0,
-                locked: 0,
-            });
+        let mut stake: Stake = env.storage().instance().get(&stake_key).unwrap_or(Stake {
+            attestor: attestor.clone(),
+            amount: 0,
+            locked: 0,
+        });
 
         stake.amount += amount;
         assert!(stake.amount >= min_stake, "total stake below minimum");
@@ -154,7 +152,7 @@ impl AttestorStakingContract {
         enum SlashKey {
             Slashed(u64),
         }
-        
+
         let slash_key = SlashKey::Slashed(dispute_id);
         if env.storage().instance().has(&slash_key) {
             panic!("dispute already processed");
@@ -203,6 +201,6 @@ impl AttestorStakingContract {
 }
 
 #[cfg(test)]
-mod test;
-#[cfg(test)]
 mod slashing_test;
+#[cfg(test)]
+mod test;
