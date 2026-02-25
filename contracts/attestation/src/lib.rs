@@ -982,6 +982,10 @@ mod query_pagination_test;
             results.push_back((period.clone(), attestation_data, revocation_info));
         }
 
+    /// Returns anomaly flags and risk score for (business, period) if set. For use by lenders.
+    pub fn get_anomaly(env: Env, business: Address, period: String) -> Option<(u32, u32)> {
+        let key = (ANOMALY_KEY_TAG, business, period);
+        env.storage().instance().get(&key)
         results
     }
 
@@ -1141,3 +1145,8 @@ mod query_pagination_test;
 
     // ─── New feature methods: add new sections below (e.g. `// ── MyFeature ───` then methods). Do not edit sections above. ───
 }
+
+#[cfg(test)]
+mod anomaly_test;
+#[cfg(test)]
+mod test;

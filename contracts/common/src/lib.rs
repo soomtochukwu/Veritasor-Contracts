@@ -2,6 +2,8 @@
 
 #![cfg_attr(not(test), no_std)]
 
+pub mod governance_gating;
+
 #[cfg(test)]
 pub mod interface_spec_check;
 
